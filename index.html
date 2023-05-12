@@ -1,0 +1,59 @@
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>PDF.js</title>
+    <link
+      rel="stylesheet"
+      href="https://stackpath.bootstrapcdn.com/bootstrap/4.4.1/css/bootstrap.min.css"
+      integrity="sha384-Vkoo8x4CGsO3+Hhxv8T/Q5PaXtkKtu6ug5TOeNV6gBiFeWPGFN9MuhOf23Q9Ifjh"
+      crossorigin="anonymous"
+    />
+    <link
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css"
+    />
+    <link
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/prettify/r298/prettify.min.css"
+    />
+  </head>
+  <body>
+    <h1>PDF.js Previous/Next example</h1>
+    <link rel="stylesheet" href="/style.css" />
+    <div>
+      <button class="tool-button">
+        <input
+          type="file"
+          name="file"
+          id="file"
+          class="inputfile"
+          accept="application/pdf"
+        />
+        <label for="file">Choose a file</label>
+      </button>
+      <button id="prev">Previous</button>
+      <button id="next">Next</button>
+      &nbsp; &nbsp; &nbsp; &nbsp;
+      <span
+        >Page: <span id="page_num"></span> / <span id="page_count"></span
+      ></span>
+      &nbsp; &nbsp; &nbsp; &nbsp;
+      <button id="clearActivePage">Clear page object</button>
+      <button id="deleteSelectedObject">Delete Selected Object</button>
+
+      <button id="addRegion">Add region</button>
+      <button id="addImage">Add image</button>
+      <button id="saveCoordinate">Save coordinate</button>
+    </div>
+    <div id="canvas-container"></div>
+  </body>
+</html>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.6.347/pdf.min.js"></script>
+<script>
+  pdfjsLib.GlobalWorkerOptions.workerSrc =
+    "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.6.347/pdf.worker.min.js";
+</script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/fabric.js/4.3.0/fabric.min.js"></script>
+<script src="/script.js"></script>
