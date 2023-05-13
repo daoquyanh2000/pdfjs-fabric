@@ -5,10 +5,12 @@ var pdfDoc = null,
     pageNum = 1,
     pageRendering = false,
     pageNumPending = null,
+    viewport = null,
     scale = 1,
     fabricObjects = [], // list các object của các trang
     listCoordinate = [], // list tọa độ đã bấm của các trang 
-    listData = [] // list data tọa độ trả về
+    listData = [] // list data tọa độ trả về,
+    signData = null //thông tin để ký
 
 
 const imageUrl = 'image.jpg';
@@ -28,8 +30,9 @@ function renderPage(num) {
   pageRendering = true;
   // Using promise to fetch the page
   pdfDoc.getPage(num).then(function(page) {
-    const viewport = page.getViewport({scale: scale});
-    var canvas = document.createElement('canvas');
+    debugger
+    viewport = page.getViewport({scale: scale});
+    const canvas = document.createElement('canvas');
     containerCanvas.appendChild(canvas);
     canvas.height = viewport.height;
     canvas.width = viewport.width;
@@ -99,24 +102,29 @@ document.getElementById('next').addEventListener('click', onNextPage);
  * Upload PDF.
  */
 document.getElementById('file').onchange = function (event) {
+
     pageNum = 1;
     var file = event.target.files[0];
     var fileReader = new FileReader();
     fileReader.onload = function() {
+      debugger
     const typedarray = new Uint8Array(this.result);
-
+    asyncDownloadPDF(typedarray);
+    }
+    fileReader.readAsArrayBuffer(file);
+}
     /**
      * Asynchronously downloads PDF.
      */
+function asyncDownloadPDF(typedarray){
+    resetFabricObject();
     pdfjsLib.getDocument(typedarray).promise.then(function(pdfDoc_) {
-        pdfDoc = pdfDoc_;
-        document.getElementById('page_count').textContent = pdfDoc.numPages;
-    
-        // Initial/first page rendering
-        renderPage(pageNum);
-    });
-    }
-    fileReader.readAsArrayBuffer(file);
+      pdfDoc = pdfDoc_;
+      document.getElementById('page_count').textContent = pdfDoc.numPages;
+
+      // Initial/first page rendering
+      renderPage(pageNum);
+  });
 }
 // init region 
 function initFabric(){
@@ -205,6 +213,9 @@ function addRegion(data){
     );
     fabricObject.add(rect);
     fabricObject.setActiveObject(rect);
+    //add region to object
+    addObjectToListData(rect);
+
   }
 
 }
@@ -220,13 +231,17 @@ function addImageToCanvas(){
           image.src = dataUrl;
       })
       image.onload = function () {
-        fabricObject.add(new fabric.Image(image, {
-            lockRotation: true,
-            lockSkewingX: true,
-            lockSkewingY: true,
-            scaleX: 0.5,
-            scaleY: 0.5
-          }))
+        const fabricImage = new fabric.Image(image, {
+          lockRotation: true,
+          lockSkewingX: true,
+          lockSkewingY: true,
+          scaleX: 0.5,
+          scaleY: 0.5
+        })
+        fabricObject.add(fabricImage)
+        fabricObject.setActiveObject(fabricImage);
+        //add region to object
+        addObjectToListData(fabricImage);
       }
   }
 }
@@ -239,6 +254,7 @@ function deleteSelectedObject(){
       fabricObjects[pageNum - 1].remove(activeObject)
     }
   }
+  resetFabricObject();
 }
 document.getElementById('deleteSelectedObject').addEventListener('click', deleteSelectedObject);
 
@@ -249,15 +265,87 @@ function clearActivePage(){
     fabricObj.clear();
     fabricObj.setBackgroundImage(bg, fabricObj.renderAll.bind(fabricObj));
   }
+  resetFabricObject();
 }
 document.getElementById('clearActivePage').addEventListener('click', clearActivePage);
 
 function saveCoordinate(){
-  console.log(listCoordinate);
+  let data = JSON.parse(JSON.stringify(listData))
+  listData.forEach((region, index) => {
+    const position = region.Object.getBoundingRect();
+    //Sửa lại top bởi vì gốc tọa độ BE  và FE là khác nhau
+    const fixedTop = viewport.height - position.top - position.height;
+    data[index] = {
+      PageNumber: region.PageNumber,
+      Coordinates: {
+        llx: Math.round(position.left),
+        lly: Math.round(position.height + fixedTop),
+        urx: Math.round(position.left + position.width),
+        ury: Math.round(fixedTop),
+      },
+    }
+  });
+  signData = data[data.length - 1];
+  console.log(data);
 }
 document.getElementById('saveCoordinate').addEventListener('click', saveCoordinate);
 
 
+function signPDF(){
+  saveCoordinate();
+  var formdata = new FormData();
+  const pdfInput = document.getElementById('file');
+  const signImageInput = document.getElementById('signImage');
+  formdata.append("serial", "54010b000310be42cdc04865a84242ca");
+  formdata.append("file", pdfInput.files[0], "pdf file");
+  formdata.append("isVisible", "true");
+  formdata.append("page", signData.PageNumber);
+  formdata.append("llx", signData.Coordinates.llx);
+  formdata.append("lly", signData.Coordinates.lly);
+  formdata.append("urx", signData.Coordinates.urx);
+  formdata.append("ury", signData.Coordinates.ury);
+  formdata.append("detectString", "");
+  formdata.append("image", signImageInput.files[0], "sign image");
+  formdata.append("detail", "1,6");
+  formdata.append("reason", "");
+  formdata.append("location", "");
+  formdata.append("contactInfo", "");
+
+  var requestOptions = {
+    method: 'POST',
+    body: formdata,
+    redirect: 'follow'
+  };
+
+  fetch("http://localhost:14423/api/v1/sign/pdf/usb", requestOptions)
+    .then(response => response.json())
+    .then(result => {
+      downloadPDF(result.data)
+    })
+    .catch(error => console.log('error', error));
+}
+document.getElementById('signPDF').addEventListener('click', signPDF);
+
+function loadFile(event) {
+  debugger
+  var output = document.getElementById('previewImage');
+  output.src = URL.createObjectURL(event.target.files[0]);
+  output.onload = function() {
+    URL.revokeObjectURL(output.src) // free memory
+  }
+};
+
+
+function addObjectToListData(object){
+  listData.push({
+    PageNumber: pageNum,
+    Object: object
+  })
+}
+function resetFabricObject(){
+  fabricObjects = [];    
+  listData = [];
+}
 function toDataURL(url, callback) {
   var xhr = new XMLHttpRequest();
   xhr.onload = function () {
@@ -270,4 +358,21 @@ function toDataURL(url, callback) {
   xhr.open('GET', url);
   xhr.responseType = 'blob';
   xhr.send();
+}
+function base64ToUint8Array(base64) {
+  var raw = atob(base64);
+  var uint8Array = new Uint8Array(raw.length);
+  for (var i = 0; i < raw.length; i++) {
+    uint8Array[i] = raw.charCodeAt(i);
+  }
+  return uint8Array;
+}
+function downloadPDF(pdf) {
+  const linkSource = `data:application/pdf;base64,${pdf}`;
+  const downloadLink = document.createElement("a");
+  const fileName = "signed-pdf.pdf";
+  downloadLink.href = linkSource;
+  downloadLink.download = fileName;
+  downloadLink.click();
+  //downloadLink.remove();
 }
